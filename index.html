@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>API Explorer</title>
+    <link rel="stylesheet" href="./css/bulma.css">
+    <link rel="stylesheet" href="./css/custom.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.10/css/all.css">
+</head>
+<body>
+<div class="container" id="app" v-cloak>
+
+    <h1 class="title has-text-info has-text-centered">API Explorer</h1>
+    <h1 class="has-text-left has-text-weight-bold">How it Works:</h1>
+    <h1 class="has-text-left">
+    <ul style="list-style-type:disc">
+    	<li>Add the url for the API</li>
+    	<li>Choose a HTTP request method from the dropdown menu</li>
+    	<li>Add the component title</li>
+    	<li>Click "Add Request Parameter Field" to add request parameter fields based on the endpoint configuration</li>
+    	<li>Choose the type of request parameter from the dropdown menu in the popup modal</li>
+    	<li>Click "Build Component" to render the explorer component which allows you to add parameters to your request</li>
+    	<li>Click "Send Request" after adding the data in the appropriate parameter fields. The API response will be displayed below.</li>
+    </ul>
+    </h1>
+    
+
+
+    <form @submit="buildApiComponent($event)">
+        <div class="control mt-1">
+            <label for="base_url" class="label">Base Url</label>
+            <input class="input" type="url" name="base_url" id="base_url" v-model="base_url" required>
+        </div>
+
+        <div class="control mt-1">
+            <label for="request_method" class="label">Request Method</label>
+            <div class="select">
+                <select name="request_method" id="request_method" v-model="request_method" required>
+                    <option value="">Select Request Method</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="contro mt-1">
+            <label for="component_title" class="label">Component Title</label>
+            <input class="input" type="text" name="component_title" id="component_title" v-model="component_title" required>
+        </div>
+
+        <h2 class="title mt-1 has-text-grey">Body</h2>
+        <div>
+            <div>
+                <span v-if="!shared.saved_fields.length" class="has-text-info">No fields have been added yet. Requests without parameters will also hit the base url successfully.</span>
+            </div>
+
+            <div class="mt-1">
+        <span class="button is-info is-outlined" @click="launchNewFieldModal">
+                        <span>Add Request Parameter Field</span>
+                        <span class="icon is-small">
+                          <i class="fas fa-plus"></i>
+                        </span>
+                    </span>
+            </div>
+
+
+        </div>
+
+        <table class="table mt-2 is-fullwidth" v-if="shared.saved_fields.length">
+            <thead>
+            <tr>
+                <th>Field Name</th>
+                <th>Field Type</th>
+                <th>Field Min Length</th>
+                <th>Field Max Length</th>
+                <th>Field Placeholder</th>
+                <th>Required</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr v-for="field in shared.saved_fields">
+                <td class="has-text-success">{{ field.field_name }}</td>
+                <td>{{ field.field_type }}</td>
+                <td>{{ field.field_min_length }}</td>
+                <td>{{ field.field_max_length }}</td>
+                <td>{{ field.field_placeholder }}</td>
+                <!--Cast number text as boolean, https://en.code-bude.net/2016/03/14/best-practice-convert-1-and-0-to-true-and-false-in-javascript/-->
+                <td>{{ Boolean(!! + field.field_is_required) }}</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="mt-1">
+            <button type="submit" class="button is-info">Build Component</button>
+        </div>
+
+    </form>
+
+    <div class="box mt-2">
+        <h1 class="title has-text-info has-text-centered mt-2">Rendered Explorer Component</h1>
+
+        <span class="has-text-info" v-if="!component_built">Component has not been built yet. Fill out all required fields.</span>
+
+        <div v-if="component_built">
+            <form @submit="callApi($event)">
+                <h2 class="title" v-show="component_title"><span class="has-text-info mr-1">Title:</span>{{ component_title }}</h2>
+                <h2 class="title" v-show="request_method"><span class="has-text-info mr-1">Method:</span>{{ request_method }}</h2>
+                <h2 class="title" v-show="base_url"><span class="has-text-info mr-1">Base Url:</span>{{ base_url }}</h2>
+                <div v-for="field in shared.saved_fields">
+                    <div class="control">
+                        <label :for="field.field_name" class="label" v-text="field.field_name"></label>
+                        <input v-if="field.field_type === 'tel'" class="input" :type="field.field_type" :name="field.field_name" :id="field.field_name" :placeholder="field.field_placeholder" :required="field.field_is_required" :pattern="phone_number_regex">
+
+                        <input v-else-if="field.field_type === 'text'" class="input" :type="field.field_type" :name="field.field_name" :id="field.field_name" :placeholder="field.field_placeholder" :required="field.field_is_required" :minlength="field.field_min_length" :maxlength="field.field_max_length">
+
+                        <input v-else-if="field.field_type === 'email'" class="input" :type="field.field_type" :name="field.field_name" :id="field.field_name" :placeholder="field.field_placeholder" :required="field.field_is_required">
+
+                        <input v-else-if="field.field_type === 'number'" class="input" :type="field.field_type" :name="field.field_name" :id="field.field_name" :placeholder="field.field_placeholder" :required="field.field_is_required">
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button type="submit" class="button is-info" :disabled="sending_request" :class="{'is-loading' : sending_request}">Send Request</button>
+                </div>
+                <div v-if="!sending_request && api_response">
+                    <h3 class="has-text-info has-text-centered">Api Response:</h3>
+                    <pre>
+                        {{ api_response }}
+                    </pre>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+
+    <modal></modal>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.5.21/dist/vue.js"></script>
+<script src="./js/jquery.js"></script>
+<script src="./js/Event.js"></script>
+<script src="./js/shared.js"></script>
+<script src="./js/Modal.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>
